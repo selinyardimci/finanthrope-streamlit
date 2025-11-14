@@ -159,6 +159,7 @@ budgetLabels = {
       "allocation_logement": "Allocation logement",
       "revenu_immobilier": "Revenu immobilier",
       "activite_secondaire": "Activité secondaire net",
+      "autre": "Autre",
     },
     "depensesQuotidiennes": {
       "abonnement": "Abonnements",
@@ -166,6 +167,8 @@ budgetLabels = {
       "telephone": "Téléphone",
       "loisirs": "Loisirs",
       "voyage": "Voyages",
+      "loyer": "Loyer",
+      "autre": "Autre",
     },
     "depensesAdministratives": {
       "assurance_habitation": "Assurance habitation",
@@ -173,12 +176,14 @@ budgetLabels = {
       "assurance_deces": "Assurance décès",
       "mutuelle": "Mutuelle",
       "frais_bancaires": "Frais bancaires",
+      "autre": "Autre",
     },
     "depensesFamiliales": {
       "scolaire": "Frais scolaires",
       "cantine": "Cantine",
       "sport": "Sport",
       "loisirs_enfants": "Loisirs enfants",
+      "autre": "Autre",
     },
     "credits": {
       "credit_auto": "Crédit auto",
@@ -186,11 +191,13 @@ budgetLabels = {
       "credit_travaux": "Crédit travaux",
       "credit_consommation": "Crédit consommation",
       "pret_etudiant": "Prêt étudiant",
+      "autre": "Autre",
     },
     "impots": {
       "impot_salaire": "Impôts sur le salaire",
       "impot_foncier": "Impôts fonciers",
       "impot_pfu": "Impôts PFU",
+      "autre": "Autre",
     },
   },
   "en": {
@@ -201,6 +208,7 @@ budgetLabels = {
       "allocation_logement": "Housing allowance",
       "revenu_immobilier": "Property income",
       "activite_secondaire": "Side activity net",
+      "autre": "Other income",
     },
     "depensesQuotidiennes": {
       "abonnement": "Subscriptions",
@@ -208,6 +216,8 @@ budgetLabels = {
       "telephone": "Phone",
       "loisirs": "Leisure",
       "voyage": "Travel",
+      "loyer": "Rent",
+      "autre": "Other",
     },
     "depensesAdministratives": {
       "assurance_habitation": "Home insurance",
@@ -215,12 +225,14 @@ budgetLabels = {
       "assurance_deces": "Life insurance",
       "mutuelle": "Health cover",
       "frais_bancaires": "Bank fees",
+      "autre": "Other",
     },
     "depensesFamiliales": {
       "scolaire": "School fees",
       "cantine": "Canteen",
       "sport": "Sports",
       "loisirs_enfants": "Kids leisure",
+      "autre": "Other",
     },
     "credits": {
       "credit_auto": "Car loan",
@@ -228,11 +240,13 @@ budgetLabels = {
       "credit_travaux": "Renovation loan",
       "credit_consommation": "Consumer loan",
       "pret_etudiant": "Student loan",
+      "autre": "Other",
     },
     "impots": {
       "impot_salaire": "Salary tax",
       "impot_foncier": "Property tax",
       "impot_pfu": "Flat tax",
+      "autre": "Other",
     },
   },
 }
@@ -379,7 +393,7 @@ def create_pdf(payload: Dict, labels: Dict, lang: str) -> bytes:
             dep_vals,
             radius=1.0,
             startangle=90,
-            labels=None,                # avoid label overlap
+            labels=None,
             autopct=None,
             colors=CHART_PALETTE,
             wedgeprops=dict(width=0.36, edgecolor="white")
@@ -422,10 +436,16 @@ def create_pdf(payload: Dict, labels: Dict, lang: str) -> bytes:
     return buf.read()
 
 # -----------------------------
-# App header
+# App header with logo
 # -----------------------------
-st.title(labels[L]["app_title"])
-st.caption(labels[L]["app_sub"])
+header_logo_col, header_text_col = st.columns([1, 8])
+with header_logo_col:
+    # Put your logo file in the same folder and update the name if needed
+    st.image("logo.png", width=56)
+
+with header_text_col:
+    st.title(labels[L]["app_title"])
+    st.caption(labels[L]["app_sub"])
 
 # -----------------------------
 # State model
