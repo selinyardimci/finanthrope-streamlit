@@ -12,57 +12,121 @@ st.set_page_config(
     layout="wide"
 )
 
-# ---------- Desktop styling ----------
-st.markdown(
-    """
-    <style>
-      .summary-card { position: sticky; top: 1rem; }
-      .block-container { padding-top: 1rem; padding-bottom: 2rem; }
-      .stSelectbox, .stNumberInput { margin-bottom: 0.25rem; }
-
-      /* Gold PDF button: wrap the button in <div class="gold-pdf"> ... </div> */
-      .gold-pdf button {
-        background: linear-gradient(135deg, #D4AF37, #B8860B);
-        color: #ffffff !important;
-        border: 0;
-        box-shadow: 0 2px 8px rgba(212, 175, 55, 0.45);
-      }
-      .gold-pdf button:hover { filter: brightness(1.06); }
-      .gold-pdf button:focus {
-        outline: 2px solid rgba(212, 175, 55, 0.55);
-        outline-offset: 2px;
-      }
-
-      /* Calmer JSON button so the gold option stands out */
-      .calm-json button {
-        background: #f4f5f7;
-        color: #1f2937 !important;
-        border: 1px solid #e5e7eb;
-      }
-      .calm-json button:hover { background: #eef0f3; }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
 # -----------------------------
-# UI language
+# UI language + theme
 # -----------------------------
 LANGS = ["fr", "en"]
+
 if "lang" not in st.session_state:
     st.session_state.lang = "fr"
 
+if "theme" not in st.session_state:
+    st.session_state.theme = "dark"  # default to night mode
+
 with st.container():
-    col_lang_1, col_lang_2 = st.columns([1, 6], gap="small")
+    col_lang_1, col_lang_2 = st.columns([1.2, 3], gap="small")
+
     with col_lang_1:
         st.session_state.lang = st.selectbox(
             "Langue • Language",
             LANGS,
-            index=0,
+            index=0 if st.session_state.lang == "fr" else 1,
             format_func=lambda x: "Français" if x == "fr" else "English"
         )
 
+    current_lang = st.session_state.lang
+
+    with col_lang_2:
+        theme_label = "Mode" if current_lang == "fr" else "Mode"
+        def fmt_theme(x: str) -> str:
+            if current_lang == "fr":
+                return "Clair" if x == "light" else "Sombre"
+            else:
+                return "Light" if x == "light" else "Dark"
+
+        theme_choice = st.radio(
+            theme_label,
+            ["light", "dark"],
+            index=1 if st.session_state.theme == "dark" else 0,
+            horizontal=True,
+            format_func=fmt_theme,
+        )
+        st.session_state.theme = theme_choice
+
 L = st.session_state.lang
+THEME = st.session_state.theme
+
+# ---------- Styling (including night mode) ----------
+base_css = """
+<style>
+  .summary-card { position: sticky; top: 1rem; padding: 0.75rem 0.75rem 0.5rem 0.75rem; border-radius: 0.75rem; }
+  .block-container { padding-top: 1rem; padding-bottom: 2rem; }
+  .stSelectbox, .stNumberInput { margin-bottom: 0.25rem; }
+
+  /* Gold PDF button */
+  .gold-pdf button {
+    background: linear-gradient(135deg, #D4AF37, #B8860B);
+    color: #ffffff !important;
+    border: 0;
+    box-shadow: 0 2px 8px rgba(212, 175, 55, 0.45);
+  }
+  .gold-pdf button:hover { filter: brightness(1.06); }
+  .gold-pdf button:focus {
+    outline: 2px solid rgba(212, 175, 55, 0.55);
+    outline-offset: 2px;
+  }
+
+  /* Calmer JSON button so the gold option stands out */
+  .calm-json button {
+    background: #f4f5f7;
+    color: #1f2937 !important;
+    border: 1px solid #e5e7eb;
+  }
+  .calm-json button:hover { background: #eef0f3; }
+"""
+
+if THEME == "dark":
+    base_css += """
+  body, .stApp {
+    background-color: #020617;
+    color: #e5e7eb;
+  }
+  header[data-testid="stHeader"] {
+    background: transparent;
+  }
+  .summary-card {
+    background-color: #020617;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+  }
+  .stMetric-label, .stMetric-value, .stMetric-delta {
+    color: #e5e7eb !important;
+  }
+  .stAlert, .stAlert p {
+    color: #e5e7eb !important;
+  }
+  .stAlert {
+    background-color: rgba(15, 23, 42, 0.9) !important;
+    border: 1px solid rgba(148, 163, 184, 0.45) !important;
+  }
+"""
+else:
+    base_css += """
+  body, .stApp {
+    background-color: #ffffff;
+    color: #111827;
+  }
+  header[data-testid="stHeader"] {
+    background: linear-gradient(to right, #ffffff, #f9fafb);
+  }
+  .summary-card {
+    background-color: #ffffff;
+    border: 1px solid rgba(209, 213, 219, 0.8);
+  }
+"""
+
+base_css += "</style>"
+
+st.markdown(base_css, unsafe_allow_html=True)
 
 # -----------------------------
 # Labels and category options
@@ -268,6 +332,16 @@ def key_from_label(section_key: str, human_label: str) -> str:
 def label_from_key(section_key: str, k: str) -> str:
     return budgetLabels[L][section_key].get(k, k)
 
+def pdf_label_from_row(dict_key: str, row: Dict, lang: str) -> str:
+    """For PDF: use custom label when type is 'autre'."""
+    t = row.get("type", "")
+    if t == "autre":
+        custom = row.get("custom_label") or row.get("customLabel")
+        if custom:
+            return custom
+        return budgetLabels[lang][dict_key].get("autre", "Autre" if lang == "fr" else "Other")
+    return budgetLabels[lang][dict_key].get(t, t)
+
 # -----------------------------
 # PDF generator (Coolors palette + donut)
 # -----------------------------
@@ -280,7 +354,7 @@ def create_pdf(payload: Dict, labels: Dict, lang: str) -> bytes:
     import matplotlib.pyplot as plt
     import io as _io
 
-    # Coolors palette https://coolors.co/palette/eae4e9-fff1e6-fde2e4-fad2e1-e2ece9-bee1e6-f0efeb-dfe7fd-cddafd
+    # Coolors palette
     COL_EAE4E9 = colors.HexColor("#EAE4E9")
     COL_FFF1E6 = colors.HexColor("#FFF1E6")
     COL_FDE2E4 = colors.HexColor("#FDE2E4")
@@ -340,7 +414,7 @@ def create_pdf(payload: Dict, labels: Dict, lang: str) -> bytes:
         rows = payload["sections"][section_key]
         data = [[labels[lang]["type"], labels[lang]["amount"] + f" ({labels[lang]['euros']})"]]
         for r in rows:
-            human = budgetLabels[lang][dict_key].get(r.get("type", ""), r.get("type", ""))
+            human = pdf_label_from_row(dict_key, r, lang)
             amt = float(r.get("montant", 0.0))
             data.append([human, f"{amt:,.2f}"])
 
@@ -368,7 +442,7 @@ def create_pdf(payload: Dict, labels: Dict, lang: str) -> bytes:
     add_section(labels[lang]["pdf_dep"] + " — " + labels[lang]["credits"], "credits", "credits")
     add_section(labels[lang]["pdf_dep"] + " — " + labels[lang]["impots"], "impots", "impots")
 
-    # Donut chart with legend (no overlapping labels)
+    # Donut chart with legend
     dep_vals = [
         totals["quotidiennes"],
         totals["administratives"],
@@ -385,6 +459,7 @@ def create_pdf(payload: Dict, labels: Dict, lang: str) -> bytes:
     ]
 
     if sum(dep_vals) > 0:
+        import matplotlib.pyplot as plt
         fig, ax = plt.subplots(figsize=(5.4, 4.2), dpi=220)
         fig.patch.set_facecolor("white")
         ax.set_facecolor("white")
@@ -399,11 +474,9 @@ def create_pdf(payload: Dict, labels: Dict, lang: str) -> bytes:
             wedgeprops=dict(width=0.36, edgecolor="white")
         )
 
-        # Inner hole
         centre_circle = plt.Circle((0, 0), 0.64, color="white")
         ax.add_artist(centre_circle)
 
-        # Soft outer ring from the palette
         ring = plt.Circle((0, 0), 1.0, fill=False, linewidth=1.4, color="#CDDAFD")
         ax.add_artist(ring)
 
@@ -440,7 +513,6 @@ def create_pdf(payload: Dict, labels: Dict, lang: str) -> bytes:
 # -----------------------------
 header_logo_col, header_text_col = st.columns([1, 8])
 with header_logo_col:
-    # Put your logo file in the same folder and update the name if needed
     st.image("logo.png", width=56)
 
 with header_text_col:
@@ -495,16 +567,33 @@ def render_section(title: str, desc: str, state_key: str, section_key_for_labels
     to_delete = None
     for i, row in enumerate(rows):
         c1, c2, c3 = st.columns([4, 3, 1])
-        current_label = label_from_key(section_key_for_labels, row.get("type", ""))
+
+        # ---- Type + custom label when "autre" / "other" ----
         with c1:
+            current_label = label_from_key(section_key_for_labels, row.get("type", ""))
+            opts = options_for(section_key_for_labels)
+
             sel = st.selectbox(
                 f'{labels[L]["type"]} {state_key}-{i}',
-                options_for(section_key_for_labels),
-                index=options_for(section_key_for_labels).index(current_label)
-                      if current_label in options_for(section_key_for_labels) else 0,
+                opts,
+                index=opts.index(current_label) if current_label in opts else 0,
                 key=f"sel-{state_key}-{i}",
             )
             row["type"] = key_from_label(section_key_for_labels, sel)
+
+            if row["type"] == "autre":
+                placeholder = "Précisez la catégorie" if L == "fr" else "Specify category"
+                custom_val = st.text_input(
+                    f"{placeholder} {state_key}-{i}",
+                    value=row.get("custom_label", ""),
+                    key=f"custom-{state_key}-{i}",
+                )
+                row["custom_label"] = custom_val
+            else:
+                # Clean up if user changes from "autre" to something else
+                row.pop("custom_label", None)
+
+        # ---- Amount ----
         with c2:
             amt = st.number_input(
                 f'{labels[L]["amount"]} {state_key}-{i}',
@@ -513,6 +602,8 @@ def render_section(title: str, desc: str, state_key: str, section_key_for_labels
                 key=f"amt-{state_key}-{i}",
             )
             row["montant"] = amt
+
+        # ---- Remove row ----
         with c3:
             if st.button(labels[L]["remove"], key=f"rm-{state_key}-{i}"):
                 to_delete = i
@@ -525,7 +616,9 @@ def render_section(title: str, desc: str, state_key: str, section_key_for_labels
     cols = st.columns([1, 3])
     with cols[0]:
         if st.button(labels[L]["add"], key=f"add-{state_key}"):
-            rows.append({"type": list(budgetLabels[L][section_key_for_labels].keys())[0], "montant": 0.0})
+            # default to first defined key in that section
+            default_key = list(budgetLabels[L][section_key_for_labels].keys())[0]
+            rows.append({"type": default_key, "montant": 0.0})
             st.session_state[state_key] = rows
             st.rerun()
     with cols[1]:
